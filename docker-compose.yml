@@ -1,0 +1,41 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/ml_ops-main/mlops_project/backend:latest}
+    container_name: mlops-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - mlops-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/ml_ops-main/mlops_project/frontend:latest}
+    container_name: mlops-frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - BACKEND_URL=http://backend:8000
+    networks:
+      - mlops-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  mlops-network:
+    driver: bridge

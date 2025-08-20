@@ -1,0 +1,14 @@
+# Streamlit and web interface
+streamlit>=1.28.0
+requests>=2.31.0
+
+# Data manipulation and visualization
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.17.0
+
+# Additional utilities
+python-dotenv>=1.0.0
+
