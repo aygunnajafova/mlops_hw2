@@ -1,7 +1,6 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 import joblib
-import pandas as pd
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, validator
