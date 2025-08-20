@@ -28,81 +28,11 @@ jobs:
       - name: Ruff check
         run: uvx ruff check --output-format=github .
 
-  build:
-    name: Build Docker Images
-    runs-on: ubuntu-latest
-    needs: [ci]
-    outputs:
-      backend-image: ${{ steps.meta-backend.outputs.tags }}
-      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Build Backend Image
-      - name: Extract metadata for Backend
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/backend
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ${{ steps.meta-backend.outputs.tags }}
-          labels: ${{ steps.meta-backend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Build Frontend Image
-      - name: Extract metadata for Frontend
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/frontend
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: ${{ steps.meta-frontend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Image digest
-        run: echo "Backend image digest: ${{ steps.meta-backend.outputs.digest }}"
-        run: echo "Frontend image digest: ${{ steps.meta-frontend.outputs.digest }}"
-
   deploy:
     name: Deploy (Docker Compose on self-hosted)
     # Deploy only on pushes to main, never on PRs
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [ci, build]
+    needs: [ci]
     runs-on: self-hosted
     environment: production
     steps:
@@ -116,17 +46,10 @@ jobs:
           docker --version || true
           (docker compose version || docker-compose --version) || true
 
-      - name: Pull latest images
-        run: |
-          docker pull ghcr.io/${{ github.repository }}/backend:latest
-          docker pull ghcr.io/${{ github.repository }}/frontend:latest
-
       - name: Build & (re)start stack via Docker Compose
         env:
           DOCKER_BUILDKIT: "0"
           COMPOSE_DOCKER_CLI_BUILD: "1"
-          BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend:latest
-          FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend:latest
         run: |
           set -e
           
@@ -143,21 +66,5 @@ jobs:
       - name: Prune dangling images (optional)
         run: |
           docker image prune -f || true
-
-      - name: Health check
-        run: |
-          echo "Waiting for services to be ready..."
-          sleep 30
-          
-          # Check if containers are running
-          docker-compose -f docker-compose.yml ps
-          
-          # Basic health check (adjust based on your services)
-          if docker-compose -f docker-compose.yml ps | grep -q "Up"; then
-            echo "✅ Services are running successfully"
-          else
-            echo "❌ Services failed to start properly"
-            exit 1
-          fi
 
     
